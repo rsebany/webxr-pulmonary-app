@@ -1,7 +1,4 @@
 {
-  "version": 2,
-  "buildCommand": "mkdir -p api/models && cp -r backend/models/*.pkl api/models/ 2>/dev/null || true && cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",

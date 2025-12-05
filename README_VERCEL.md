@@ -35,9 +35,16 @@ npm run build
 4. Configurez le projet:
    - **Framework Preset**: Vite
    - **Root Directory**: `frontend`
-   - **Build Command**: `npm run build`
+   - **Build Command**: `npm install && npm run build`
    - **Output Directory**: `dist`
    - **Install Command**: `npm install`
+   
+   **IMPORTANT**: Avant de déployer, copiez les modèles ML:
+   ```bash
+   mkdir -p api/models
+   cp backend/models/*.pkl api/models/
+   ```
+   Puis commitez et poussez ces fichiers avant le déploiement.
 
 5. Ajoutez les variables d'environnement:
    - `VITE_API_URL` = `/api` (pour utiliser les serverless functions)

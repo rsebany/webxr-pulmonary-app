@@ -1,0 +1,9 @@
+{
+  "name": "webxr-pulmonary-app",
+  "version": "1.0.0",
+  "description": "WebXR Pulmonary Fibrosis Visualization App",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build"
+  }
+}
+
