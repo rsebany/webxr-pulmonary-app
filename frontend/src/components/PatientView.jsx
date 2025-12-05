@@ -1,6 +1,7 @@
 // frontend/src/components/PatientView.jsx
 import React, { useState, useEffect } from 'react';
 import WebXRViewer from './WebXRViewer';
+import API_BASE_URL from '../config/api';
 
 const PatientView = ({ user, onLogout }) => {
     const [myData, setMyData] = useState(null);
@@ -14,7 +15,7 @@ const PatientView = ({ user, onLogout }) => {
     const loadMyData = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8000/patient/my-data', {
+            const response = await fetch(`${API_BASE_URL}/patient/my-data`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             
@@ -44,7 +45,7 @@ const PatientView = ({ user, onLogout }) => {
         
         for (let week = latestEntry.week; week <= latestEntry.week + 52; week += 8) {
             try {
-                const response = await fetch('http://localhost:8000/predict', {
+                const response = await fetch(`${API_BASE_URL}/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

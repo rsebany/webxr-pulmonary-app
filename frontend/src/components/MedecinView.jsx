@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import WebXRViewer from './WebXRViewer';
 import PatientPanel from './PatientPanel';
 import PredictionControls from './PredictionControls';
+import API_BASE_URL from '../config/api';
 
 const MedecinView = ({ user, onLogout }) => {
     const [patients, setPatients] = useState([]);
@@ -20,7 +21,7 @@ const MedecinView = ({ user, onLogout }) => {
     const loadPatients = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8000/medecin/patients', {
+            const response = await fetch(`${API_BASE_URL}/medecin/patients`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -36,7 +37,7 @@ const MedecinView = ({ user, onLogout }) => {
         setIsLoading(true);
         setLoadingMessage('Chargement des données patient...');
         try {
-            const response = await fetch(`http://localhost:8000/patient-history/${patientId}`);
+            const response = await fetch(`${API_BASE_URL}/patient-history/${patientId}`);
             if (response.ok) {
                 const data = await response.json();
                 setPatientData(data);
@@ -51,7 +52,7 @@ const MedecinView = ({ user, onLogout }) => {
                 
                 const latestEntry = fvcHistory[fvcHistory.length - 1] || { week: 0, fvc: fvcMean };
                 
-                const predResponse = await fetch('http://localhost:8000/predict', {
+                const predResponse = await fetch(`${API_BASE_URL}/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -89,7 +90,7 @@ const MedecinView = ({ user, onLogout }) => {
                     formData.append('files', file);
                 });
                 
-                const response = await fetch('http://localhost:8000/analyze-dicom-volume', {
+                const response = await fetch(`${API_BASE_URL}/analyze-dicom-volume`, {
                     method: 'POST',
                     body: formData
                 });
@@ -128,7 +129,7 @@ const MedecinView = ({ user, onLogout }) => {
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                const response = await fetch('http://localhost:8000/analyze-dicom', {
+                const response = await fetch(`${API_BASE_URL}/analyze-dicom`, {
                     method: 'POST',
                     body: formData
                 });

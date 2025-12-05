@@ -30,15 +30,25 @@ app.add_middleware(
 )
 
 # Créer le dossier models s'il n'existe pas
-MODELS_DIR = "models"
-if not os.path.exists(MODELS_DIR):
-    os.makedirs(MODELS_DIR)
-    print(f"📁 Dossier '{MODELS_DIR}' créé")
+# Support pour différents environnements (local, Vercel serverless)
+if os.path.exists("backend/models"):
+    MODELS_DIR = "backend/models"
+elif os.path.exists("models"):
+    MODELS_DIR = "models"
+elif os.path.exists("api/models"):
+    MODELS_DIR = "api/models"
+else:
+    MODELS_DIR = "models"
+    if not os.path.exists(MODELS_DIR):
+        os.makedirs(MODELS_DIR)
+        print(f"📁 Dossier '{MODELS_DIR}' créé")
 
 # Charger ou créer le modèle
 try:
-    model = joblib.load(f'{MODELS_DIR}/pulmonary_model.pkl')
-    scaler = joblib.load(f'{MODELS_DIR}/scaler.pkl')
+    model_path = os.path.join(MODELS_DIR, "pulmonary_model.pkl")
+    scaler_path = os.path.join(MODELS_DIR, "scaler.pkl")
+    model = joblib.load(model_path)
+    scaler = joblib.load(scaler_path)
     print("✅ Modèle et scaler chargés avec succès")
 except FileNotFoundError:
     print("📝 Création de modèles de démonstration...")
@@ -73,8 +83,10 @@ except FileNotFoundError:
     model.fit(X_scaled, y_demo)
     
     # Sauvegarder les modèles
-    joblib.dump(model, f'{MODELS_DIR}/pulmonary_model.pkl')
-    joblib.dump(scaler, f'{MODELS_DIR}/scaler.pkl')
+    model_path = os.path.join(MODELS_DIR, "pulmonary_model.pkl")
+    scaler_path = os.path.join(MODELS_DIR, "scaler.pkl")
+    joblib.dump(model, model_path)
+    joblib.dump(scaler, scaler_path)
     print("✅ Modèles de démonstration créés et sauvegardés")
     
 except Exception as e:

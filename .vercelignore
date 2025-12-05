@@ -1,0 +1,9 @@
+backend/__pycache__
+backend/*.pyc
+node_modules
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
