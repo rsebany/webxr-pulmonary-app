@@ -3,6 +3,11 @@ backend/
 backend/**
 shared/
 scripts/
+# Exclure les modèles ML (téléchargés dynamiquement depuis Google Drive)
+api/models/
+api/models/**
+*.pkl
+*.zip
 *.log
 .env.local
 .env.development.local

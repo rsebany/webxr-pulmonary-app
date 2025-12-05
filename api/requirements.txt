@@ -11,4 +11,5 @@ python-jose[cryptography]
 bcrypt
 scikit-learn
 mangum
+requests
 

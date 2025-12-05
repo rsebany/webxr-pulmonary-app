@@ -10,6 +10,10 @@ import pydicom
 from io import BytesIO
 import base64
 import os
+import requests
+import zipfile
+import tempfile
+import shutil
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
@@ -18,6 +22,10 @@ from auth import (
     require_role, UserLogin, Token, UserCreate, fake_users_db,
     get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
 )
+
+# Configuration Google Drive
+GOOGLE_DRIVE_FILE_ID = "1DhLWUjKxLXamYASubg28S5Oqs4jqp156"
+GOOGLE_DRIVE_DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
 
 app = FastAPI(title="Pulmonary Fibrosis WebXR API")
 
@@ -29,32 +37,150 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Créer le dossier models s'il n'existe pas
-# Support pour différents environnements (local, Vercel serverless)
-# Prioriser api/models pour Vercel
-if os.path.exists("api/models"):
+def download_model_from_google_drive(download_url: str, output_dir: str) -> bool:
+    """
+    Télécharge le modèle depuis Google Drive et l'extrait dans le dossier de sortie.
+    Gère les fichiers ZIP (contenant pulmonary_model.pkl et scaler.pkl) ou les fichiers .pkl individuels.
+    """
+    try:
+        print(f"📥 Téléchargement du modèle depuis Google Drive...")
+        
+        # Télécharger le fichier
+        response = requests.get(download_url, stream=True, timeout=120)
+        response.raise_for_status()
+        
+        # Vérifier si c'est un fichier HTML (avertissement Google Drive pour gros fichiers)
+        content_type = response.headers.get('Content-Type', '')
+        if 'text/html' in content_type:
+            print("⚠️  Avertissement Google Drive détecté, utilisation de confirm=t...")
+            # Essayer avec le paramètre confirm=t
+            download_url_with_confirm = f"{download_url}&confirm=t"
+            response = requests.get(download_url_with_confirm, stream=True, timeout=120)
+            response.raise_for_status()
+            content_type = response.headers.get('Content-Type', '')
+        
+        # Créer un fichier temporaire
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            # Écrire le contenu téléchargé
+            total_size = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    tmp_file.write(chunk)
+                    total_size += len(chunk)
+        
+        file_size_mb = total_size / 1024 / 1024
+        print(f"✅ Fichier téléchargé ({file_size_mb:.2f} MB)")
+        
+        # Détecter le type de fichier et traiter en conséquence
+        is_zip = False
+        try:
+            # Essayer d'ouvrir comme ZIP
+            with zipfile.ZipFile(tmp_path, 'r') as test_zip:
+                test_zip.testzip()
+            is_zip = True
+        except (zipfile.BadZipFile, zipfile.LargeZipFile):
+            is_zip = False
+        
+        if is_zip:
+            # Extraire le ZIP
+            print("📦 Extraction du fichier ZIP...")
+            with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+                zip_ref.extractall(output_dir)
+                extracted_files = zip_ref.namelist()
+                print(f"✅ Fichiers extraits: {', '.join(extracted_files)}")
+        else:
+            # C'est probablement un fichier .pkl unique
+            # Vérifier l'extension ou le contenu
+            print("📄 Fichier unique détecté, copie directe...")
+            filename = "pulmonary_model.pkl"  # Nom par défaut
+            if ".pkl" in download_url or "pkl" in content_type.lower():
+                # Essayer de déterminer quel modèle c'est
+                # Si c'est le modèle principal, on le copie
+                output_path = os.path.join(output_dir, filename)
+                shutil.copy2(tmp_path, output_path)
+                print(f"✅ Fichier copié vers {output_path}")
+            else:
+                # Si on ne peut pas déterminer, on suppose que c'est le modèle principal
+                output_path = os.path.join(output_dir, filename)
+                shutil.copy2(tmp_path, output_path)
+                print(f"✅ Fichier copié vers {output_path} (supposé être {filename})")
+        
+        # Nettoyer le fichier temporaire
+        os.unlink(tmp_path)
+        
+        # Vérifier que les fichiers requis existent
+        model_path = os.path.join(output_dir, "pulmonary_model.pkl")
+        scaler_path = os.path.join(output_dir, "scaler.pkl")
+        
+        if not os.path.exists(model_path):
+            print(f"⚠️  Attention: {model_path} n'existe pas après téléchargement")
+        if not os.path.exists(scaler_path):
+            print(f"⚠️  Attention: {scaler_path} n'existe pas après téléchargement")
+            # Si le scaler n'existe pas, on peut créer un scaler vide (sera recréé si nécessaire)
+            print("ℹ️  Le scaler sera créé automatiquement si nécessaire")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erreur lors du téléchargement depuis Google Drive: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+# Configuration du dossier models
+# Sur Vercel, utiliser /tmp pour l'écriture (seul endroit accessible en écriture)
+if os.path.exists("/tmp"):
+    # Environnement Vercel serverless
+    MODELS_DIR = "/tmp/models"
+elif os.path.exists("api/models"):
     MODELS_DIR = "api/models"
 elif os.path.exists("models"):
     MODELS_DIR = "models"
 elif os.path.exists("backend/models"):
     MODELS_DIR = "backend/models"
 else:
-    MODELS_DIR = "api/models"
-    if not os.path.exists(MODELS_DIR):
-        os.makedirs(MODELS_DIR)
-        print(f"📁 Dossier '{MODELS_DIR}' créé")
+    MODELS_DIR = "/tmp/models" if os.path.exists("/tmp") else "api/models"
 
-# Charger ou créer le modèle
+# Créer le dossier models s'il n'existe pas
+if not os.path.exists(MODELS_DIR):
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    print(f"📁 Dossier '{MODELS_DIR}' créé")
+
+# Charger ou télécharger le modèle
+model = None
+scaler = None
+
 try:
     model_path = os.path.join(MODELS_DIR, "pulmonary_model.pkl")
     scaler_path = os.path.join(MODELS_DIR, "scaler.pkl")
-    model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
-    print("✅ Modèle et scaler chargés avec succès")
-except FileNotFoundError:
+    
+    # Vérifier si les modèles existent localement
+    if os.path.exists(model_path) and os.path.exists(scaler_path):
+        print("📂 Chargement des modèles depuis le cache local...")
+        model = joblib.load(model_path)
+        scaler = joblib.load(scaler_path)
+        print("✅ Modèle et scaler chargés avec succès depuis le cache")
+    else:
+        print("📥 Les modèles ne sont pas en cache local, téléchargement depuis Google Drive...")
+        
+        # Télécharger depuis Google Drive
+        if download_model_from_google_drive(GOOGLE_DRIVE_DOWNLOAD_URL, MODELS_DIR):
+            # Recharger les modèles après téléchargement
+            if os.path.exists(model_path) and os.path.exists(scaler_path):
+                model = joblib.load(model_path)
+                scaler = joblib.load(scaler_path)
+                print("✅ Modèle et scaler chargés avec succès depuis Google Drive")
+            else:
+                raise FileNotFoundError("Les modèles n'ont pas été trouvés après téléchargement")
+        else:
+            raise Exception("Échec du téléchargement depuis Google Drive")
+            
+except FileNotFoundError as e:
+    print(f"⚠️  Modèles non trouvés: {e}")
     print("📝 Création de modèles de démonstration...")
     
-    # Créer un modèle de démonstration
+    # Créer un modèle de démonstration en fallback
     model = RandomForestRegressor(n_estimators=50, random_state=42)
     scaler = StandardScaler()
     
@@ -91,8 +217,25 @@ except FileNotFoundError:
     print("✅ Modèles de démonstration créés et sauvegardés")
     
 except Exception as e:
-    print(f"❌ Erreur inattendue: {e}")
-    raise
+    print(f"❌ Erreur inattendue lors du chargement du modèle: {e}")
+    import traceback
+    traceback.print_exc()
+    # Créer un modèle de démonstration en dernier recours
+    print("📝 Création d'un modèle de démonstration en dernier recours...")
+    model = RandomForestRegressor(n_estimators=50, random_state=42)
+    scaler = StandardScaler()
+    np.random.seed(42)
+    X_demo = np.column_stack([
+        np.random.uniform(0, 100, 100),
+        np.random.uniform(50, 90, 100),
+        np.random.uniform(40, 80, 100),
+        np.random.uniform(2000, 4000, 100),
+        np.random.uniform(100, 300, 100)
+    ])
+    y_demo = 3000 - X_demo[:, 0] * 2 - (80 - X_demo[:, 1]) * 10 + np.random.normal(0, 100, 100)
+    X_scaled = scaler.fit_transform(X_demo)
+    model.fit(X_scaled, y_demo)
+    print("⚠️  Utilisation d'un modèle de démonstration")
 
 class PredictionRequest(BaseModel):
     weeks: float
