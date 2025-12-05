@@ -1,9 +1,14 @@
-backend/__pycache__
-backend/*.pyc
-node_modules
+# Exclure le backend complet (on utilise api/ pour Vercel)
+backend/
+backend/**
+shared/
+scripts/
 *.log
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+# Exclure node_modules du frontend (déjà géré par Vercel mais pour être sûr)
+frontend/node_modules/
+frontend/.vite/
 
