@@ -1,18 +1,12 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "mkdir -p api/models && cp -r backend/models/*.pkl api/models/ 2>/dev/null || true && cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.9",
-      "includeFiles": "backend/**"
-    }
-  }
+  ]
 }
 
